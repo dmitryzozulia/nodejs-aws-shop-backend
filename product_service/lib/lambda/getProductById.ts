@@ -50,8 +50,6 @@ const products: Product[] = [
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
-  console.log("Event:", event); // For debugging
-
   try {
     // Get productId from path parameters
     const productId = event.pathParameters?.productId;

@@ -9,7 +9,9 @@
     "watch": "tsc -w",
     "test": "jest",
     "lint": "eslint . --ext .ts",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
@@ -36,3 +38,4 @@
     "tsx": "^4.19.3"
   }
 }
+
