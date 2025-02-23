@@ -1,0 +1,139 @@
+openapi: 3.0.0
+info:
+  title: Product Service API
+  description: API for managing products
+  version: 1.0.0
+  contact:
+    name: Your Name
+    email: your.email@example.com
+
+servers:
+  - url: https://qbglx37wfh.execute-api.us-east-1.amazonaws.com/prod
+    description: Production server
+
+paths:
+  /products:
+    get:
+      summary: Get all products
+      description: Returns a list of all available products
+      operationId: getProductsList
+      tags:
+        - Products
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:YOUR_ACCOUNT_ID:function:getProductsList/invocations
+        passthroughBehavior: when_no_match
+        httpMethod: POST
+        type: aws_proxy
+
+  /products/{productId}:
+    get:
+      summary: Get product by ID
+      description: Returns a single product by ID
+      operationId: getProductById
+      tags:
+        - Products
+      parameters:
+        - name: productId
+          in: path
+          description: ID of the product to retrieve
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "400":
+          description: Invalid ID supplied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:YOUR_ACCOUNT_ID:function:getProductById/invocations
+        passthroughBehavior: when_no_match
+        httpMethod: POST
+        type: aws_proxy
+
+components:
+  schemas:
+    Product:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - price
+      properties:
+        id:
+          type: string
+          example: "1"
+          description: Unique identifier for the product
+        title:
+          type: string
+          example: "Product Name"
+          description: Name of the product
+        description:
+          type: string
+          example: "Detailed description of the product"
+          description: Product description
+        price:
+          type: number
+          format: float
+          example: 29.99
+          description: Product price in USD
+      example:
+        id: "1"
+        title: "Sample Product"
+        description: "This is a sample product description"
+        price: 29.99
+
+    Error:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: "Error message"
+          description: Error message describing what went wrong
+
+  securitySchemes:
+    api_key:
+      type: apiKey
+      name: x-api-key
+      in: header
+
+tags:
+  - name: Products
+    description: Everything about products
