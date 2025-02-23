@@ -2,25 +2,33 @@ import * as cdk from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as path from "path";
+import * as lambdaNodejs from "aws-cdk-lib/aws-lambda-nodejs";
 
 export class ProductServiceStack extends cdk.Stack {
   constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // Create Lambda functions
-    const getProductsList = new lambda.Function(this, "GetProductsList", {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "getProductsList.handler",
-      code: lambda.Code.fromAsset(path.join(__dirname, "lambda")),
-      timeout: cdk.Duration.seconds(30), // Add timeout
-    });
+    const getProductsList = new lambdaNodejs.NodejsFunction(
+      this,
+      "GetProductsList",
+      {
+        entry: path.join(__dirname, "./lambda/getProductsList.ts"),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_18_X,
+        timeout: cdk.Duration.seconds(30),
+      }
+    );
 
-    const getProductById = new lambda.Function(this, "GetProductById", {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "getProductsById.handler",
-      code: lambda.Code.fromAsset(path.join(__dirname, "lambda")),
-      timeout: cdk.Duration.seconds(30), // Add timeout
-    });
+    const getProductById = new lambdaNodejs.NodejsFunction(
+      this,
+      "GetProductById",
+      {
+        entry: path.join(__dirname, "./lambda/getProductById.ts"),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_18_X,
+        timeout: cdk.Duration.seconds(30),
+      }
+    );
 
     // Create API Gateway
     const api = new apigateway.RestApi(this, "ProductsApi", {

@@ -1,16 +1,49 @@
 import { APIGatewayProxyResult } from "aws-lambda";
 
 interface Product {
+  description: string;
   id: string;
-  name: string;
   price: number;
-  description?: string;
+  title: string;
 }
 
 const products: Product[] = [
-  { id: "1", name: "Product 1", price: 10, description: "Description 1" },
-  { id: "2", name: "Product 2", price: 20, description: "Description 2" },
-  { id: "3", name: "Product 3", price: 30, description: "Description 3" },
+  {
+    description: "Short Product Description1",
+    id: "7567ec4b-b10c-48c5-9345-fc73c48a80aa",
+    price: 24,
+    title: "ProductOne",
+  },
+  {
+    description: "Short Product Description7",
+    id: "7567ec4b-b10c-48c5-9345-fc73c48a80a1",
+    price: 15,
+    title: "ProductTitle",
+  },
+  {
+    description: "Short Product Description2",
+    id: "7567ec4b-b10c-48c5-9345-fc73c48a80a3",
+    price: 23,
+    title: "Product",
+  },
+  {
+    description: "Short Product Description4",
+    id: "7567ec4b-b10c-48c5-9345-fc73348a80a1",
+    price: 15,
+    title: "ProductTest",
+  },
+  {
+    description: "Short Product Descriptio1",
+    id: "7567ec4b-b10c-48c5-9445-fc73c48a80a2",
+    price: 23,
+    title: "Product2",
+  },
+  {
+    description: "Short Product Description7",
+    id: "7567ec4b-b10c-45c5-9345-fc73c48a80a1",
+    price: 15,
+    title: "ProductName",
+  },
 ];
 
 export const handler = async (): Promise<APIGatewayProxyResult> => {
