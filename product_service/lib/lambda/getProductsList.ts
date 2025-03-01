@@ -13,10 +13,19 @@ const docClient = DynamoDBDocumentClient.from(client, {
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
-  console.log("Event:", JSON.stringify(event, null, 2));
+  console.log(
+    "getProductsList lambda invoked with event:",
+    JSON.stringify(
+      {
+        queryStringParameters: event.queryStringParameters,
+        headers: event.headers,
+      },
+      null,
+      2
+    )
+  );
 
   try {
-    // Get all products
     const productsResult = await docClient.send(
       new ScanCommand({
         TableName: process.env.PRODUCTS_TABLE,
@@ -28,7 +37,6 @@ export const handler = async (
       JSON.stringify(productsResult.Items, null, 2)
     );
 
-    // Get all stocks
     const stocksResult = await docClient.send(
       new ScanCommand({
         TableName: process.env.STOCKS_TABLE,
@@ -40,7 +48,6 @@ export const handler = async (
       JSON.stringify(stocksResult.Items, null, 2)
     );
 
-    // Join and transform the data
     const products =
       productsResult.Items?.map((product) => {
         const stock = stocksResult.Items?.find(

@@ -1,5 +1,9 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  TransactWriteCommand,
+  TransactWriteCommandInput,
+} from "@aws-sdk/lib-dynamodb";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { v4 as uuidv4 } from "uuid";
 
@@ -10,107 +14,83 @@ interface ProductData {
   title: string;
   description: string;
   price: number;
-  count?: number;
+  count: number;
 }
-
-const validateProductData = (
-  data: any
-): { isValid: boolean; message: string } => {
-  // Check if all required fields exist
-  if (!data.title || !data.description || data.price === undefined) {
-    return {
-      isValid: false,
-      message:
-        "Missing required fields: title, description, and price are required",
-    };
-  }
-
-  // Validate title
-  if (typeof data.title !== "string" || data.title.trim().length === 0) {
-    return {
-      isValid: false,
-      message: "Title must be a non-empty string",
-    };
-  }
-
-  // Validate description
-  if (
-    typeof data.description !== "string" ||
-    data.description.trim().length === 0
-  ) {
-    return {
-      isValid: false,
-      message: "Description must be a non-empty string",
-    };
-  }
-
-  // Validate price
-  if (typeof data.price !== "number" || data.price <= 0) {
-    return {
-      isValid: false,
-      message: "Price must be a positive number",
-    };
-  }
-
-  // Validate count if provided
-  if (
-    data.count !== undefined &&
-    (typeof data.count !== "number" ||
-      data.count < 0 ||
-      !Number.isInteger(data.count))
-  ) {
-    return {
-      isValid: false,
-      message: "Count must be a non-negative integer",
-    };
-  }
-
-  return {
-    isValid: true,
-    message: "Valid",
-  };
-};
 
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
+  console.log(
+    "createProduct lambda invoked with event:",
+    JSON.stringify(
+      {
+        body: event.body,
+        pathParameters: event.pathParameters,
+        queryStringParameters: event.queryStringParameters,
+        headers: event.headers,
+      },
+      null,
+      2
+    )
+  );
+
   try {
-    // Parse the incoming request body
-    let productData: ProductData;
-    try {
-      productData = JSON.parse(event.body || "{}");
-    } catch (e) {
+    if (!event.body) {
       return {
         statusCode: 400,
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Credentials": true,
         },
-        body: JSON.stringify({
-          message: "Invalid JSON in request body",
-        }),
+        body: JSON.stringify({ message: "Missing request body" }),
       };
     }
 
-    // Validate the data
-    const validation = validateProductData(productData);
-    if (!validation.isValid) {
+    const productData: ProductData = JSON.parse(event.body);
+
+    if (
+      !productData.title ||
+      !productData.description ||
+      productData.price === undefined ||
+      productData.count === undefined
+    ) {
       return {
         statusCode: 400,
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Credentials": true,
         },
         body: JSON.stringify({
-          message: validation.message,
+          message:
+            "Missing required fields: title, description, price, and count are required",
         }),
       };
     }
 
-    // Generate a new UUID for the product
+    if (productData.price <= 0) {
+      return {
+        statusCode: 400,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({
+          message: "Price must be greater than 0",
+        }),
+      };
+    }
+
+    if (productData.count < 0 || !Number.isInteger(productData.count)) {
+      return {
+        statusCode: 400,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({
+          message: "Count must be a non-negative integer",
+        }),
+      };
+    }
+
     const productId = uuidv4();
 
-    // Create new product object
     const newProduct = {
       "id (String)": productId,
       title: productData.title.trim(),
@@ -118,36 +98,47 @@ export const handler = async (
       price: productData.price,
     };
 
-    // Create stock object
     const newStock = {
       product_id: productId,
-      count:
-        productData.count !== undefined
-          ? productData.count
-          : Math.floor(Math.random() * 100) + 1, // Default random stock if not provided
+      count: productData.count,
     };
 
-    // Save product to DynamoDB
-    await docClient.send(
-      new PutCommand({
-        TableName: process.env.PRODUCTS_TABLE || "products",
-        Item: newProduct,
-      })
+    const transactParams: TransactWriteCommandInput = {
+      TransactItems: [
+        {
+          Put: {
+            TableName: process.env.PRODUCTS_TABLE,
+            Item: newProduct,
+            ConditionExpression: "attribute_not_exists(#id)",
+            ExpressionAttributeNames: {
+              "#id": "id (String)",
+            },
+          },
+        },
+        {
+          Put: {
+            TableName: process.env.STOCKS_TABLE,
+            Item: newStock,
+            ConditionExpression: "attribute_not_exists(product_id)",
+          },
+        },
+      ],
+    };
+
+    console.log(
+      "Executing transaction with params:",
+      JSON.stringify(transactParams, null, 2)
     );
 
-    // Save stock to DynamoDB
-    await docClient.send(
-      new PutCommand({
-        TableName: process.env.STOCKS_TABLE || "stocks",
-        Item: newStock,
-      })
-    );
+    // Execute transaction
+    await docClient.send(new TransactWriteCommand(transactParams));
+
+    console.log("Transaction completed successfully");
 
     return {
       statusCode: 201,
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Credentials": true,
       },
       body: JSON.stringify({
         product: newProduct,
@@ -155,14 +146,17 @@ export const handler = async (
       }),
     };
   } catch (error) {
-    console.error("Error creating product and stock:", error);
+    console.error("Error in transaction:", error);
+
     return {
       statusCode: 500,
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Credentials": true,
       },
-      body: JSON.stringify({ message: "Internal server error" }),
+      body: JSON.stringify({
+        message: "Error creating product and stock",
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
     };
   }
 };

@@ -13,10 +13,22 @@ const docClient = DynamoDBDocumentClient.from(client, {
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
-  console.log("Event:", JSON.stringify(event, null, 2));
+  console.log(
+    "getProductById lambda invoked with event:",
+    JSON.stringify(
+      {
+        pathParameters: event.pathParameters,
+        queryStringParameters: event.queryStringParameters,
+        headers: event.headers,
+      },
+      null,
+      2
+    )
+  );
 
   try {
     const productId = event.pathParameters?.productId;
+    console.log("Searching for product with ID:", productId);
 
     if (!productId) {
       return {
@@ -53,7 +65,6 @@ export const handler = async (
       };
     }
 
-    // Get stock information
     const stockResult = await docClient.send(
       new GetCommand({
         TableName: process.env.STOCKS_TABLE,
