@@ -1,71 +1,86 @@
-import { APIGatewayProxyResult } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
 
-interface Product {
-  description: string;
-  id: string;
-  price: number;
-  title: string;
-}
+const client = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(client, {
+  marshallOptions: {
+    removeUndefinedValues: true,
+    convertClassInstanceToMap: true,
+  },
+});
 
-const products: Product[] = [
-  {
-    description: "Short Product Description1",
-    id: "7567ec4b-b10c-48c5-9345-fc73c48a80aa",
-    price: 24,
-    title: "ProductOne",
-  },
-  {
-    description: "Short Product Description7",
-    id: "7567ec4b-b10c-48c5-9345-fc73c48a80a1",
-    price: 15,
-    title: "ProductTitle",
-  },
-  {
-    description: "Short Product Description2",
-    id: "7567ec4b-b10c-48c5-9345-fc73c48a80a3",
-    price: 23,
-    title: "Product",
-  },
-  {
-    description: "Short Product Description4",
-    id: "7567ec4b-b10c-48c5-9345-fc73348a80a1",
-    price: 15,
-    title: "ProductTest",
-  },
-  {
-    description: "Short Product Descriptio1",
-    id: "7567ec4b-b10c-48c5-9445-fc73c48a80a2",
-    price: 23,
-    title: "Product2",
-  },
-  {
-    description: "Short Product Description7",
-    id: "7567ec4b-b10c-45c5-9345-fc73c48a80a1",
-    price: 15,
-    title: "ProductName",
-  },
-];
+export const handler = async (
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> => {
+  console.log("Event:", JSON.stringify(event, null, 2));
 
-export const handler = async (): Promise<APIGatewayProxyResult> => {
   try {
+    // Get all products
+    const productsResult = await docClient.send(
+      new ScanCommand({
+        TableName: process.env.PRODUCTS_TABLE,
+      })
+    );
+
+    console.log(
+      "Products raw data:",
+      JSON.stringify(productsResult.Items, null, 2)
+    );
+
+    // Get all stocks
+    const stocksResult = await docClient.send(
+      new ScanCommand({
+        TableName: process.env.STOCKS_TABLE,
+      })
+    );
+
+    console.log(
+      "Stocks raw data:",
+      JSON.stringify(stocksResult.Items, null, 2)
+    );
+
+    // Join and transform the data
+    const products =
+      productsResult.Items?.map((product) => {
+        const stock = stocksResult.Items?.find(
+          (stock) => stock.product_id === product["id (String)"]
+        );
+
+        const transformedProduct = {
+          id: product["id (String)"],
+          title: product.title,
+          description: product.description,
+          price: Number(product.price),
+          count: stock ? Number(stock.count) : 0,
+        };
+
+        console.log(
+          "Transformed product:",
+          JSON.stringify(transformedProduct, null, 2)
+        );
+        return transformedProduct;
+      }) || [];
+
     return {
       statusCode: 200,
       headers: {
-        "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Credentials": true,
-        "Access-Control-Allow-Methods": "GET",
       },
       body: JSON.stringify(products),
     };
   } catch (error) {
+    console.error("Error:", error);
     return {
       statusCode: 500,
       headers: {
-        "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
-      body: JSON.stringify({ message: "Internal server error" }),
+      body: JSON.stringify({
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
     };
   }
 };
+

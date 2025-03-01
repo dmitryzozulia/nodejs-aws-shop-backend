@@ -1,100 +1,92 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 
-interface Product {
-  description: string;
-  id: string;
-  price: number;
-  title: string;
-}
-
-// Mock database
-const products: Product[] = [
-  {
-    description: "Short Product Description1",
-    id: "7567ec4b-b10c-48c5-9345-fc73c48a80aa",
-    price: 24,
-    title: "ProductOne",
+const client = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(client, {
+  marshallOptions: {
+    removeUndefinedValues: true,
+    convertClassInstanceToMap: true,
   },
-  {
-    description: "Short Product Description7",
-    id: "7567ec4b-b10c-48c5-9345-fc73c48a80a1",
-    price: 15,
-    title: "ProductTitle",
-  },
-  {
-    description: "Short Product Description2",
-    id: "7567ec4b-b10c-48c5-9345-fc73c48a80a3",
-    price: 23,
-    title: "Product",
-  },
-  {
-    description: "Short Product Description4",
-    id: "7567ec4b-b10c-48c5-9345-fc73348a80a1",
-    price: 15,
-    title: "ProductTest",
-  },
-  {
-    description: "Short Product Descriptio1",
-    id: "7567ec4b-b10c-48c5-9445-fc73c48a80a2",
-    price: 23,
-    title: "Product2",
-  },
-  {
-    description: "Short Product Description7",
-    id: "7567ec4b-b10c-45c5-9345-fc73c48a80a1",
-    price: 15,
-    title: "ProductName",
-  },
-];
+});
 
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
+  console.log("Event:", JSON.stringify(event, null, 2));
+
   try {
-    // Get productId from path parameters
     const productId = event.pathParameters?.productId;
 
     if (!productId) {
       return {
         statusCode: 400,
         headers: {
-          "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
         },
         body: JSON.stringify({ message: "Product ID is required" }),
       };
     }
 
-    // Find product by id
-    const product = products.find((p) => p.id === productId);
+    // Get product details
+    const productResult = await docClient.send(
+      new GetCommand({
+        TableName: process.env.PRODUCTS_TABLE,
+        Key: {
+          "id (String)": productId,
+        },
+      })
+    );
 
-    if (!product) {
+    console.log(
+      "Product raw data:",
+      JSON.stringify(productResult.Item, null, 2)
+    );
+
+    if (!productResult.Item) {
       return {
         statusCode: 404,
         headers: {
-          "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
         },
         body: JSON.stringify({ message: "Product not found" }),
       };
     }
 
+    // Get stock information
+    const stockResult = await docClient.send(
+      new GetCommand({
+        TableName: process.env.STOCKS_TABLE,
+        Key: {
+          product_id: productId,
+        },
+      })
+    );
+
+    console.log("Stock raw data:", JSON.stringify(stockResult.Item, null, 2));
+
+    const response = {
+      id: productResult.Item["id (String)"],
+      title: productResult.Item.title,
+      description: productResult.Item.description,
+      price: Number(productResult.Item.price),
+      count: stockResult.Item ? Number(stockResult.Item.count) : 0,
+    };
+
+    console.log("Transformed response:", JSON.stringify(response, null, 2));
+
     return {
       statusCode: 200,
       headers: {
-        "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Credentials": true,
-        "Access-Control-Allow-Methods": "GET",
       },
-      body: JSON.stringify(product),
+      body: JSON.stringify(response),
     };
   } catch (error) {
-    console.error("Error:", error); // For debugging
+    console.error("Error:", error);
     return {
       statusCode: 500,
       headers: {
-        "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
       body: JSON.stringify({
@@ -104,3 +96,4 @@ export const handler = async (
     };
   }
 };
+

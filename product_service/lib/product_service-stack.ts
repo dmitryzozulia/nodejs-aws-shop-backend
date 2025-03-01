@@ -3,6 +3,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as path from "path";
 import * as lambdaNodejs from "aws-cdk-lib/aws-lambda-nodejs";
+import * as iam from "aws-cdk-lib/aws-iam";
 
 export class ProductServiceStack extends cdk.Stack {
   constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
@@ -16,6 +17,10 @@ export class ProductServiceStack extends cdk.Stack {
         handler: "handler",
         runtime: lambda.Runtime.NODEJS_18_X,
         timeout: cdk.Duration.seconds(30),
+        environment: {
+          PRODUCTS_TABLE: "products",
+          STOCKS_TABLE: "stocks",
+        },
       }
     );
 
@@ -27,7 +32,30 @@ export class ProductServiceStack extends cdk.Stack {
         handler: "handler",
         runtime: lambda.Runtime.NODEJS_18_X,
         timeout: cdk.Duration.seconds(30),
+        environment: {
+          PRODUCTS_TABLE: "products",
+          STOCKS_TABLE: "stocks",
+        },
       }
+    );
+
+    const productsTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/products`;
+    const stocksTableArn = `arn:aws:dynamodb:${this.region}:${this.account}:table/stocks`;
+
+    getProductsList.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["dynamodb:Scan", "dynamodb:GetItem", "dynamodb:Query"],
+        resources: [productsTableArn, stocksTableArn],
+      })
+    );
+
+    getProductById.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["dynamodb:GetItem", "dynamodb:Query"],
+        resources: [productsTableArn, stocksTableArn],
+      })
     );
 
     // Create API Gateway
