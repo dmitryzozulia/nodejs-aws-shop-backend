@@ -11,7 +11,8 @@
     "lint": "eslint . --ext .ts",
     "cdk": "cdk",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "populate": "ts-node populateTables.ts"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
@@ -40,3 +41,4 @@
     "tsx": "^4.19.3"
   }
 }
+
