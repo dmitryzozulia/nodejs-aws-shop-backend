@@ -11,7 +11,8 @@
     "lint": "eslint . --ext .ts",
     "cdk": "cdk",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "populate": "ts-node populateTables.ts"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
@@ -31,6 +32,8 @@
     "@aws-cdk/aws-dynamodb": "^1.121.0",
     "@aws-cdk/aws-lambda": "^1.19.0",
     "@aws-cdk/aws-lambda-nodejs": "^1.203.0",
+    "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.758.0",
     "aws-cdk-lib": "^2.178.2",
     "aws-lambda": "^1.0.7",
     "constructs": "^10.4.2",
