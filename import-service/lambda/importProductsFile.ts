@@ -2,15 +2,14 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Credentials": true,
+};
+
 const s3Client = new S3Client({});
 const BUCKET_NAME = process.env.BUCKET_NAME;
 const UPLOADED_FOLDER = process.env.UPLOADED_FOLDER || "uploaded";
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,PUT,POST,OPTIONS",
-  "Access-Control-Allow-Headers": "*",
-};
 
 export const handler = async (
   event: APIGatewayProxyEvent
@@ -24,13 +23,14 @@ export const handler = async (
       return {
         statusCode: 400,
         headers: CORS_HEADERS,
-        body: JSON.stringify({ message: "File name is required" }),
+        body: JSON.stringify({ message: "Name parameter is required" }),
       };
     }
 
+    const key = `${UPLOADED_FOLDER}/${fileName}`;
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
-      Key: `${UPLOADED_FOLDER}/${fileName}`,
+      Key: key,
       ContentType: "text/csv",
     });
 
@@ -43,17 +43,16 @@ export const handler = async (
     return {
       statusCode: 200,
       headers: CORS_HEADERS,
-      body: JSON.stringify(signedUrl),
+      body: JSON.stringify({
+        url: signedUrl,
+      }),
     };
   } catch (error) {
     console.error("Error:", error);
     return {
       statusCode: 500,
       headers: CORS_HEADERS,
-      body: JSON.stringify({
-        message: "Internal server error",
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
+      body: JSON.stringify({ message: "Error generating signed URL" }),
     };
   }
 };
