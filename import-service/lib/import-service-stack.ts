@@ -12,24 +12,28 @@ export class ImportServiceStack extends cdk.Stack {
     super(scope, id, props);
 
     // Create S3 Bucket
-    const importBucket = new s3.Bucket(this, "XXXXXXXXXXXX", {
-      cors: [
-        {
-          allowedMethods: [
-            s3.HttpMethods.GET,
-            s3.HttpMethods.PUT,
-            s3.HttpMethods.POST,
-            s3.HttpMethods.HEAD,
-          ],
-          allowedOrigins: ["*"],
-          allowedHeaders: ["*"],
-          exposedHeaders: ["ETag"],
-        },
-      ],
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
-    });
+    const importBucket = new s3.Bucket(
+      this,
+      `import-service-bucket-${cdk.Aws.ACCOUNT_ID}`,
+      {
+        cors: [
+          {
+            allowedMethods: [
+              s3.HttpMethods.GET,
+              s3.HttpMethods.PUT,
+              s3.HttpMethods.POST,
+              s3.HttpMethods.HEAD,
+            ],
+            allowedOrigins: ["*"],
+            allowedHeaders: ["*"],
+            exposedHeaders: ["ETag"],
+          },
+        ],
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        autoDeleteObjects: true,
+      }
+    );
 
     // Create importFileParser Lambda using NodejsFunction
     const importFileParser = new nodejsLambda.NodejsFunction(
