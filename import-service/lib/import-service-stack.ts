@@ -6,6 +6,10 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import { join } from "path";
+import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
+import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 
 export class ImportServiceStack extends cdk.Stack {
   constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
@@ -55,6 +59,47 @@ export class ImportServiceStack extends cdk.Stack {
         memorySize: 256,
       }
     );
+
+    const catalogItemsQueue = new sqs.Queue(this, "CatalogItemsQueue", {
+      queueName: "catalogItemsQueue",
+      visibilityTimeout: cdk.Duration.seconds(30),
+    });
+
+    // Create SNS Topic
+    const createProductTopic = new sns.Topic(this, "CreateProductTopic", {
+      topicName: "createProductTopic",
+    });
+
+    // Add email subscription
+    createProductTopic.addSubscription(
+      new subscriptions.EmailSubscription("your-email@example.com")
+    );
+
+    // Create Lambda function
+    const catalogBatchProcess = new lambda.Function(
+      this,
+      "CatalogBatchProcess",
+      {
+        runtime: lambda.Runtime.NODEJS_18_X,
+        handler: "index.handler",
+        code: lambda.Code.fromAsset("lambda/catalogBatchProcess"),
+        environment: {
+          PRODUCTS_TABLE: "products-table",
+          SNS_TOPIC_ARN: createProductTopic.topicArn,
+        },
+      }
+    );
+
+    // Configure SQS trigger for Lambda
+    catalogBatchProcess.addEventSource(
+      new SqsEventSource(catalogItemsQueue, {
+        batchSize: 5,
+      })
+    );
+
+    // Grant permissions
+    catalogItemsQueue.grantConsumeMessages(catalogBatchProcess);
+    createProductTopic.grantPublish(catalogBatchProcess);
 
     // Create importProductsFile Lambda
     const importProductsFile = new nodejsLambda.NodejsFunction(
