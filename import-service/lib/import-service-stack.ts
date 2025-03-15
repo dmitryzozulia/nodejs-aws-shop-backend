@@ -72,7 +72,7 @@ export class ImportServiceStack extends cdk.Stack {
 
     // Add email subscription
     createProductTopic.addSubscription(
-      new subscriptions.EmailSubscription("your-email@example.com")
+      new subscriptions.EmailSubscription("z1dima1z@gmail.com")
     );
 
     // Create Lambda function
@@ -82,7 +82,7 @@ export class ImportServiceStack extends cdk.Stack {
       {
         runtime: lambda.Runtime.NODEJS_18_X,
         handler: "index.handler",
-        code: lambda.Code.fromAsset("lambda/catalogBatchProcess"),
+        code: lambda.Code.fromAsset("../lambda/catalogBatchProcess"),
         environment: {
           PRODUCTS_TABLE: "products-table",
           SNS_TOPIC_ARN: createProductTopic.topicArn,
