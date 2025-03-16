@@ -1,4 +1,6 @@
-title,description,price
-TestProduct1,Description1,100
-TestProduct2,Description2,200
-TestProduct3,Description3,300
+title,description,price,count
+"Product A","Description A",19.99,5
+"Product B","Description B",25.50,10
+"Product C","Description C",30.00,7
+"Product D","Description D",45.75,3
+"Product E","Description E",12.99,8

@@ -1,3 +1,5 @@
+// import-service/lambda/importFileParser.ts
+
 import { S3Event } from "aws-lambda";
 import {
   S3Client,
@@ -5,13 +7,14 @@ import {
   CopyObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
-import csv from "csv-parser";
+import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { Readable } from "stream";
+import csv from "csv-parser";
 
 const s3Client = new S3Client({});
-const PARSED_FOLDER = "parsed";
+const sqsClient = new SQSClient({});
 
-export const handler = async (event: S3Event) => {
+export const handler = async (event: S3Event): Promise<void> => {
   console.log(
     "importFileParser lambda invoked with event:",
     JSON.stringify(event, null, 2)
@@ -24,7 +27,6 @@ export const handler = async (event: S3Event) => {
 
       console.log(`Processing file: ${key} from bucket: ${bucket}`);
 
-      // Get the file from S3
       const { Body } = await s3Client.send(
         new GetObjectCommand({
           Bucket: bucket,
@@ -32,58 +34,66 @@ export const handler = async (event: S3Event) => {
         })
       );
 
-      if (Body instanceof Readable) {
-        // Process the CSV file
-        await new Promise((resolve, reject) => {
-          Body.pipe(csv())
-            .on("data", (data: any) => {
-              console.log("Parsed CSV row:", JSON.stringify(data));
-            })
-            .on("error", (error: Error) => {
-              console.error("Error parsing CSV:", error);
-              reject(error);
-            })
-            .on("end", () => {
-              console.log("Finished processing CSV file");
-              resolve(null);
-            });
-        });
-
-        // Move file to parsed folder
-        const fileName = key.split("/").pop(); // Get filename from path
-        const newKey = `${PARSED_FOLDER}/${fileName}`;
-
-        console.log(`Moving file from ${key} to ${newKey}`);
-
-        // 1. Copy to new location
-        await s3Client.send(
-          new CopyObjectCommand({
-            Bucket: bucket,
-            CopySource: `${bucket}/${key}`,
-            Key: newKey,
-          })
-        );
-
-        console.log("File copied to parsed folder");
-
-        // 2. Delete from uploaded folder
-        await s3Client.send(
-          new DeleteObjectCommand({
-            Bucket: bucket,
-            Key: key,
-          })
-        );
-
-        console.log("File deleted from uploaded folder");
+      if (!Body) {
+        throw new Error("Empty file");
       }
-    }
 
-    return {
-      statusCode: 200,
-      body: "Successfully processed and moved files",
-    };
+      const stream = Body as Readable;
+      const results: any[] = [];
+
+      await new Promise((resolve, reject) => {
+        stream
+          .pipe(csv())
+          .on("data", (data) => results.push(data))
+          .on("end", async () => {
+            try {
+              console.log("Parsed CSV data:", results);
+
+              // Send each product to SQS
+              for (const product of results) {
+                await sqsClient.send(
+                  new SendMessageCommand({
+                    QueueUrl: process.env.SQS_QUEUE_URL,
+                    MessageBody: JSON.stringify({
+                      title: product.title,
+                      description: product.description,
+                      price: Number(product.price),
+                      count: Number(product.count),
+                    }),
+                  })
+                );
+                console.log(`Sent to SQS: ${JSON.stringify(product)}`);
+              }
+
+              // Move file to parsed folder
+              const newKey = key.replace("uploaded", "parsed");
+              await s3Client.send(
+                new CopyObjectCommand({
+                  Bucket: bucket,
+                  CopySource: `${bucket}/${key}`,
+                  Key: newKey,
+                })
+              );
+
+              // Delete from uploaded folder
+              await s3Client.send(
+                new DeleteObjectCommand({
+                  Bucket: bucket,
+                  Key: key,
+                })
+              );
+
+              resolve(undefined);
+            } catch (error) {
+              reject(error);
+            }
+          })
+          .on("error", reject);
+      });
+    }
   } catch (error) {
     console.error("Error:", error);
     throw error;
   }
 };
+
