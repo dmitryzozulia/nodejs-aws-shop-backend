@@ -32,7 +32,11 @@
     "@aws-cdk/aws-lambda-nodejs": "^1.203.0",
     "@aws-cdk/aws-s3": "^1.203.0",
     "@aws-cdk/aws-s3-notifications": "^1.203.0",
+    "@aws-sdk/client-dynamodb": "^3.767.0",
     "@aws-sdk/client-s3": "^3.758.0",
+    "@aws-sdk/client-sns": "^3.758.0",
+    "@aws-sdk/client-sqs": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.767.0",
     "@aws-sdk/s3-request-presigner": "^3.758.0",
     "aws-cdk-lib": "2.180.0",
     "aws-sdk": "^2.1692.0",
@@ -40,4 +44,3 @@
     "csv-parser": "^3.2.0"
   }
 }
-
