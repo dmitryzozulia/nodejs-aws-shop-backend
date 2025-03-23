@@ -23,7 +23,7 @@ export class ImportServiceStack extends cdk.Stack {
             s3.HttpMethods.POST,
             s3.HttpMethods.HEAD,
           ],
-          allowedOrigins: ["*"],
+          allowedOrigins: ["https://dzn1jbl6ljkq5.cloudfront.net"],
           allowedHeaders: ["*"],
           exposedHeaders: ["ETag"],
         },
@@ -112,7 +112,20 @@ export class ImportServiceStack extends cdk.Stack {
       },
     });
 
-    // Add import endpoint
+    // Create API Gateway Authorizer
+    const authorizer = new apigateway.TokenAuthorizer(
+      this,
+      "ImportServiceAuthorizer",
+      {
+        handler: lambda.Function.fromFunctionArn(
+          this,
+          "ImportServiceAuthorizerHandler",
+          "arn:aws:lambda:us-east-1:711387097400:function:AuthorizationServiceStack-BasicAuthorizer2B49C1FC-ArzxW83XLhvD"
+        ),
+      }
+    );
+
+    // Add import endpoint with authorization
     const importResource = api.root.addResource("import");
     importResource.addMethod(
       "GET",
@@ -129,6 +142,7 @@ export class ImportServiceStack extends cdk.Stack {
             },
           },
         ],
+        authorizer,
       }
     );
 
