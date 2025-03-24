@@ -1,15 +1,26 @@
 import * as cdk from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as nodejsLambda from "aws-cdk-lib/aws-lambda-nodejs";
-import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import { Construct } from "constructs";
 import { join } from "path";
+import * as dotenv from "dotenv";
 
-export class AuthorizationServiceStack extends cdk.Stack {
-  constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
+// Load environment variables
+dotenv.config();
+
+export class AutorizationServiceStack extends cdk.Stack {
+  public readonly basicAuthorizer: lambda.IFunction;
+
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // Создаём Lambda авторизатора
-    const authorizerLambda = new nodejsLambda.NodejsFunction(
+    if (!process.env.AUTH_USERNAME || !process.env.AUTH_PASSWORD) {
+      throw new Error(
+        "Environment variables AUTH_USERNAME and AUTH_PASSWORD must be set"
+      );
+    }
+
+    this.basicAuthorizer = new nodejsLambda.NodejsFunction(
       this,
       "BasicAuthorizer",
       {
@@ -17,43 +28,16 @@ export class AuthorizationServiceStack extends cdk.Stack {
         handler: "handler",
         entry: join(__dirname, "../lambda/basicAuthorizer.ts"),
         environment: {
-          dmitryzozulia: "TEST_PASSWORD",
+          AUTH_USERNAME: process.env.AUTH_USERNAME,
+          AUTH_PASSWORD: process.env.AUTH_PASSWORD,
         },
-        bundling: {
-          minify: true,
-        },
-        timeout: cdk.Duration.seconds(5),
-        memorySize: 128,
       }
     );
 
-    const api = new apigateway.RestApi(this, "AuthorizationApi", {
-      restApiName: "Authorization Service",
-      defaultCorsPreflightOptions: {
-        allowOrigins: ["https://dzn1jbl6ljkq5.cloudfront.net/"],
-        allowMethods: ["GET", "POST", "OPTIONS"],
-        allowHeaders: ["Authorization", "Content-Type"],
-        allowCredentials: true,
-      },
-    });
-
-    // Создаём Token Authorizer
-    const authorizer = new apigateway.TokenAuthorizer(this, "ApiAuthorizer", {
-      handler: authorizerLambda,
-      identitySource: "method.request.header.Authorization",
-    });
-
-    // Добавляем ресурс и метод
-    const testResource = api.root.addResource("test");
-    testResource.addMethod("GET", new apigateway.MockIntegration(), {
-      authorizer,
-      authorizationType: apigateway.AuthorizationType.CUSTOM,
-    });
-
-    // Выводим ARN авторизатора
-    new cdk.CfnOutput(this, "ApiAuthorizerArn", {
-      value: authorizerLambda.functionArn,
-      exportName: "ApiAuthorizerArn",
+    // Export the authorizer function ARN
+    new cdk.CfnOutput(this, "BasicAuthorizerArn", {
+      value: this.basicAuthorizer.functionArn,
+      exportName: "BasicAuthorizerArn",
     });
   }
 }
