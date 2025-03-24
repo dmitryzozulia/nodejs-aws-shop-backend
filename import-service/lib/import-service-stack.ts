@@ -23,7 +23,7 @@ export class ImportServiceStack extends cdk.Stack {
             s3.HttpMethods.POST,
             s3.HttpMethods.HEAD,
           ],
-          allowedOrigins: ["*"],
+          allowedOrigins: ["https://dzn1jbl6ljkq5.cloudfront.net"],
           allowedHeaders: ["*"],
           exposedHeaders: ["ETag"],
         },
@@ -37,6 +37,23 @@ export class ImportServiceStack extends cdk.Stack {
     const catalogItemsQueue = new sqs.Queue(this, "CatalogItemsQueue", {
       queueName: "catalogItemsQueue",
       visibilityTimeout: cdk.Duration.seconds(30),
+    });
+
+    // Create API Gateway
+    const api = new apigateway.RestApi(this, "ImportApi", {
+      restApiName: "Import Service",
+      defaultCorsPreflightOptions: {
+        allowOrigins: ["https://dzn1jbl6ljkq5.cloudfront.net"],
+        allowMethods: ["GET", "OPTIONS"],
+        allowHeaders: [
+          "Content-Type",
+          "Authorization",
+          "X-Amz-Date",
+          "X-Api-Key",
+          "X-Amz-Security-Token",
+        ],
+        allowCredentials: true,
+      },
     });
 
     // Create importFileParser Lambda
@@ -102,22 +119,59 @@ export class ImportServiceStack extends cdk.Stack {
       { prefix: "uploaded/", suffix: ".csv" }
     );
 
-    // Create API Gateway
-    const api = new apigateway.RestApi(this, "ImportApi", {
-      restApiName: "Import Service",
-      defaultCorsPreflightOptions: {
-        allowOrigins: ["*"],
-        allowMethods: ["GET", "PUT", "POST", "OPTIONS"],
-        allowHeaders: ["*"],
-      },
+    // Reference the existing authorizer Lambda function
+    const authorizerFn = lambda.Function.fromFunctionArn(
+      this,
+      "ImportServiceAuthorizerFn",
+      "arn:aws:lambda:us-east-1:711387097400:function:AuthorizationServiceStack-BasicAuthorizer2B49C1FC-ArzxW83XLhvD"
+    );
+
+    // Create the permission for API Gateway to invoke the authorizer
+    new lambda.CfnPermission(this, "AuthorizerInvokePermission", {
+      action: "lambda:InvokeFunction",
+      functionName: authorizerFn.functionName,
+      principal: "apigateway.amazonaws.com",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${api.restApiId}/*`,
     });
 
-    // Add import endpoint
+    // Create the authorizer
+    const authorizer = new apigateway.TokenAuthorizer(
+      this,
+      "ImportServiceAuthorizer",
+      {
+        handler: authorizerFn,
+        identitySource: apigateway.IdentitySource.header("Authorization"),
+        resultsCacheTtl: cdk.Duration.seconds(0), // Disable caching for testing
+      }
+    );
+
+    // Add import endpoint with authorization
     const importResource = api.root.addResource("import");
+
+    // Add GET method with Lambda integration
     importResource.addMethod(
       "GET",
-      new apigateway.LambdaIntegration(importProductsFile),
+      new apigateway.LambdaIntegration(importProductsFile, {
+        proxy: true,
+        integrationResponses: [
+          {
+            statusCode: "200",
+            responseParameters: {
+              "method.response.header.Access-Control-Allow-Origin":
+                "'https://dzn1jbl6ljkq5.cloudfront.net'",
+              "method.response.header.Access-Control-Allow-Headers":
+                "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+              "method.response.header.Access-Control-Allow-Methods":
+                "'GET,OPTIONS'",
+              "method.response.header.Access-Control-Allow-Credentials":
+                "'true'",
+            },
+          },
+        ],
+      }),
       {
+        authorizer: authorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
         requestParameters: {
           "method.request.querystring.name": true,
         },
@@ -126,6 +180,9 @@ export class ImportServiceStack extends cdk.Stack {
             statusCode: "200",
             responseParameters: {
               "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Credentials": true,
             },
           },
         ],
