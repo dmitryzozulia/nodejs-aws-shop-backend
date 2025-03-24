@@ -34,7 +34,23 @@ export const handler = async (
         : "Allow";
 
     if (effect === "Deny") {
-      throw new Error("Forbidden"); // Return 403
+      console.warn("Access Denied for:", username);
+      return {
+        principalId: username || "unauthorized",
+        policyDocument: {
+          Version: "2012-10-17",
+          Statement: [
+            {
+              Action: "execute-api:Invoke",
+              Effect: "Deny",
+              Resource: methodArn,
+            },
+          ],
+        },
+        context: {
+          errorMessage: "Forbidden",
+        },
+      };
     }
 
     return {
